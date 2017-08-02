@@ -1,0 +1,310 @@
+<?php
+/*
+    Plugin Name: HoweScape Unity3d WebGL
+    Plugin URI: http://www.howescape.com 
+    Description: Plugin for Wordpress to create short code for Unity3d Game
+    Author: P.T.Howe
+    Text Domain: hs_unity3d_web_gl
+	Domain Path: /languages
+    Version: 0.3.8	
+    Author URI: http://www.HoweScape.com 
+*/ 
+// Roll-A-Ball game created with unity3d.com  5.3.3f1
+// Space-Shooter game created with unity3d.com 5.3.3f1
+
+// Constants
+	DEFINE('RELEASE_SUFFIX', '-Release');
+	DEFINE('GAME_DIR', 'game_dir');
+	DEFINE(CHUNK_SIZE, '10240');
+
+// Register Database
+
+// Setup
+// Check which system and path separator 
+if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+    //echo 'This is a server using Windows!';
+	DEFINE('DS', '/'); 
+} else {
+    //echo 'This is a server not using Windows!';
+	DEFINE('DS', DIRECTORY_SEPARATOR); 
+}
+
+function unity3d_web_gl_init()
+{
+	wp_register_script('hs_unity3d_web_gl', plugin_dir_url( 'TemplateData_5_5_1/UnityProgress.js', __FILE__ ));
+	wp_register_style('hs_unity3d_web_gl', plugin_dir_url( 'TemplateData_5_5_1/style.css', __FILE__));
+}
+add_action('init', 'unity3d_web_gl_init');
+
+// Install Admin Options
+add_action('admin_menu', 'hs_unity3d_web_gl_admin');
+
+// Install data for testing
+
+// Admin link
+
+// Unity Short code
+add_shortcode('hs_unity3d_web_gl_game', 'hs_unity3d_game');
+//
+function hs_unity3d_game( $atts )
+{	
+	$pull_unity_atts = shortcode_atts ( array(
+				'src' => 'Roll-A-Ball',
+				'width' => '480',
+				'height' => '640',
+				'u3dver' => '5.3.1'
+			), $atts);
+
+	if ( !$pull_unity_atts['src'] ) return "(missing unity src)";
+	if ( !$pull_unity_atts['width'] ) return "(missing unity width)";
+	if ( !$pull_unity_atts['height'] ) return "(missing unity height)";
+	if ( !$pull_unity_atts['u3dver'] ) return "(missing unity version)";
+
+	$width 	= $pull_unity_atts['width'];
+	$height	= $pull_unity_atts['height'];
+	$gameName = $pull_unity_atts['src'];
+	$gameVersion = $pull_unity_atts['u3dver'];
+	// Test if dir exists and then check game_dir
+	$gameVersionDir = str_replace(".","_",$gameVersion);
+	if (strlen($gameVersion)>0) {
+		$gameNameDir = $gameName."_".$gameVersionDir.RELEASE_SUFFIX;
+	} else {
+		$gameNameDir = $gameName.RELEASE_SUFFIX;
+	}
+	if ($gameVersion == "5.5.1") {
+		$game_page = hs_unity3d_5_5_1($gameName, $gameNameDir, $width, $height, $gameFileName, $gameVersion);
+	} else {
+		$game_page = hs_unity3d_5_3_1($gameName, $gameNameDir, $width, $height, $gameFileName);
+	}
+	return $game_page;
+}
+function hs_unity3d_5_5_1($gameName, $gameDir, $width, $height, $gameFileName, $gameVersion) {
+	// Build page based on Builds.html created in game Builds directory
+	// Build Symbol to represent path of game. Give preference to Release
+	//echo "checkPath:".plugin_dir_path( __FILE__ ).GAME_DIR.DS.$gameDir.":<br>";
+	if (file_exists(plugin_dir_path( __FILE__ ).GAME_DIR.DS.$gameDir)) {
+		$gameLocation = plugin_dir_path( __FILE__ ).GAME_DIR.DS.$gameDir;
+		$gameLocationPath = GAME_DIR.DS.$gameDir;
+	} else if (file_exists(plugin_dir_path( __FILE__ ).$gameDir)) {
+		$gameLocation = plugin_dir_path( __FILE__ ).$gameDir;
+		$gameLocationPath = $gameDir;
+	} else {
+		_e('Game not found');
+	}
+	//echo "<br>GameLoc:".$gameLocationPath."<br><br>";
+	// Check for type of extension.
+	if (file_exists($gameLocation.DS.$gameName."data")) { // Ext is uncompressed
+		$gameFileExt = "";
+	} else if (file_exists($gameLocation.DS.$gameName."datagz")) { // Ext is compressed
+		$gameFileExt = "gz";
+	} else { // Unknown ext
+		$gameFileExt = "";
+	}
+	$gameVersionPath = "_".str_replace(".", "_", $gameVersion);
+	//echo "ver:".$gameVersionPath."<br>";
+//	$selectedLocation = $selectedLocation.$gameName."_".$gameVersionPath.RELEASE_SUFFIX.DS.$gameName;
+//	$selectedLocationLoader = $gameLocation.DS."UnityLoader.js";
+//	echo "<br>Path: ".$selectedLocation."<br>";
+//	echo "Path2: ".$selectedLocationLoader."<br>";
+	//echo "load: ".$selectedLocationLoader."<br>";
+	//echo "Ext: ".$gameFileExt."<br>";
+	//$gameVersionPath = "_".str_replace(".", "_", $gameVersion);
+	//echo "path:".$gameLocationPath.":<br>";
+	$game_page = //"<meta charset=\"utf-8\">".
+				 //"<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">".
+				 "<link rel=\"shortcut icon\" href=\"".plugins_url("/TemplateData_5_5_1/favicon.ico",__FILE__)."\"/>".
+				//"<title>Unity WebGL Player | ".$gameName."</title>".
+				"<p class=\"header\"><span>Unity WebGL Player | </span>".$gameName."</p>".
+				"<div class=\"template-wrap clear\">".
+				"<canvas class=\"emscripten\" id=\"canvas\" oncontextmenu=\"event.preventDefault()\" height=\"".$height."px\" width=\"".$width."px\"></canvas>".
+					"<br>\n".
+					"<div class=\"logo\"></div>\n".
+					"<div class=\"fullscreen\"><img src=\"".plugins_url("TemplateData_5_5_1/fullscreen.png", __FILE__)."\" width=\"38\" height=\"38\" alt=\"Fullscreen\" title=\"Fullscreen\" onclick=\"SetFullscreen(1);\" /></div>\n".
+					"<div class=\"title\">".$gameName."</div>\n".
+				"</div>\n".
+				"<script type='text/javascript'>\n".
+					"var Module = {\n".
+						"TOTAL_MEMORY:   268435456,\n".
+						"errorhandler: null,\n".
+						"compatibilitycheck: null,\n".
+						"backgroundColor: \"#222C36\",\n".
+						"splashStyle: \"Light\",\n".
+						"dataUrl: \"".plugins_url($gameLocationPath.DS.$gameName.".data".$gameFileExt,__FILE__)."\",\n".
+						"codeUrl: \"".plugins_url($gameLocationPath.DS.$gameName.".js".$gameFileExt,__FILE__)."\",\n".
+						"asmUrl: \"".plugins_url($gameLocationPath.DS.$gameName.".asm.js".$gameFileExt,__FILE__)."\",\n".
+						"memUrl: \"".plugins_url($gameLocationPath.DS.$gameName.".mem".$gameFileExt,__FILE__)."\",\n".
+					"};\n".
+				"</script>\n".
+				"<script src=\"".plugins_url($gameLocationPath.DS."UnityLoader.js",__FILE__)."\"></script>";				
+				//"<script src=\"".$selectedLocationLoader."\"></script>";	
+					// $gameName.$gameVersionPath.RELEASE_SUFFIX.DS.$gameName
+	return $game_page;
+}
+
+function hs_unity3d_5_3_1($gameName, $gameDir, $width, $height, $gameFileName) {
+	// Build page based on Builds.html created in game Builds directory
+	$game_page ="<meta charset=\"utf-8\">".
+				"<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">".
+				"<title>Unity WebGL Player | ".$gameName."</title>".
+				"<link rel=\"shortcut icon\" href=\"".plugins_url("/TemplateData/favicon.ico",__FILE__)."\"/>".
+  
+				"<p class=\"header\"><span>Unity WebGL Player | </span>".$gameName."</p>".
+				"<div class=\"template-wrap clear\">".
+				"<canvas class=\"emscripten\" id=\"canvas\" oncontextmenu=\"event.preventDefault()\" height=\"".$height."px\" width=\"".$width."px\"></canvas>".
+					"<br>".
+					"<div class=\"logo\"></div>".
+					"<div class=\"fullscreen\"><img src=\"".plugins_url("/TemplateData/fullscreen.png", __FILE__)."\" width=\"38\" height=\"38\" alt=\"Fullscreen\" title=\"Fullscreen\" onclick=\"SetFullscreen(1);\" /></div>".
+					"<div class=\"title\">".$gameName."</div>".
+				"</div>".
+				"<script type='text/javascript'>\n".
+					"var Module = {\n".
+						"TOTAL_MEMORY:   268435456,\n".
+						"errorhandler: null,\n".
+						"dataUrl: \"".plugins_url($gameName."-Release/Builds_WebGL.data",__FILE__)."\",\n".
+						"codeUrl: \"".plugins_url($gameName."-Release/Builds_WebGL.js",__FILE__)."\",\n".
+						"memUrl: \"".plugins_url($gameName."-Release/Builds_WebGL.mem",__FILE__)."\",\n".
+					"};\n".
+				"</script>\n".
+				"<script src=\"".plugins_url($gameName."-Release/UnityLoader.js",__FILE__)."\"></script>\n";	 
+	return $game_page;
+}
+function hs_unity3d_web_gl_admin() {
+	add_options_page('Unity3d Games', 'HoweScape Unity3d Game Settings', 'manage_options', 
+					'hs_unity3d_web_gl_setting', 'hs_unity3d_admin_options_page');
+}
+
+function hs_unity3d_admin_options_page($PageName) {
+	global	$wpdb;
+	global	$current_user;
+	
+	if (isset( $_POST['extract-game']) && !empty($_POST['extract-game'])) {
+		// Get selected zip file to unzip into plugin
+		$zipfilename = $_POST['extractGroup'];
+		// Get file name with out extension
+		$zipfilenameparts = explode("/",$zipfilename);
+		$partscount = count($zipfilenameparts);
+		$zipfileext = $zipfilenameparts[$partscount-1];
+		$zipfilepart = explode(".",$zipfileext);		
+		
+		// Build dir name to expanded game dir
+		$expandedGameDir = plugin_dir_path(__FILE__).GAME_DIR.DS.$zipfilepart[0];
+		
+		// Create / verify that game_dir exists
+		if (!file_exists(plugin_dir_path(__FILE__).GAME_DIR)) {
+			$makedirstatus = mkdir(plugin_dir_path(__FILE__).GAME_DIR);
+		}
+		if (file_exists($expandedGameDir)) {
+			// Remove current files to create new ones.
+			recursiveRemoveDirectory($expandedGameDir);
+		}
+		
+		$makedirstatus = mkdir($expandedGameDir);	// Create game dir
+		
+		WP_Filesystem();
+		$mediaDir = wp_upload_dir();	// Get dir of media
+		$zipfilename = $_POST['extractGroup'];
+		//echo "source: ".$mediaDir[basedir].$zipfilename."<br>";
+		//echo "destin: ".$expandedGameDir."<br>";
+		$unzipfilestatus = unzip_file($mediaDir[basedir].$zipfilename, 
+										$expandedGameDir);
+		if ($unzipfilestatus) {
+			//echo "<br>Files extracted <br>";
+		} else {
+			echo '<br> error Open: '.$zipfilename.' :End<br>';
+			//echo '<br> error Open: '.zipFileErrMsg($Zip_Handle).' :End<br>';
+		}
+
+	} else if (isset( $_POST['remove-game']) && !empty($_POST['remove-game'])) {
+		// Get selected zip file to unzip into plugin
+		$dirfilename = $_POST['removeGroup'];
+		
+		$dir = plugin_dir_path( __FILE__ );
+		$fullDir = $dir.substr($dirfilename,1).DS."*";		
+		$fullDir = str_replace("\\",DS,$fullDir);	
+		echo "fulldir:".$fullDir."<br>";
+		recursiveRemoveDirectoryGame($fullDir);
+	}
+	echo '<div class="wrap">';
+	get_screen_icon();
+	_e('<h2>HoweScape Unity3d Available Games</h2>', 'hs_unity3d_web_gl');
+	_e('<h2>HoweScape Unity3d Available Games</h2>', 'hs_unity3d_web_gl');
+	_e('<table><tr><td colspan="2"><h3>Plugin Games:</h3></td><td></td></tr>',  'hs_unity3d_web_gl');
+	$dir = plugin_dir_path( __FILE__ );
+	
+	$releaseTagZip = RELEASE_SUFFIX.".zip";
+	$dirLen = strlen($dir);
+	$releaseLen = strlen($gameDir);
+	foreach (glob($dir."*".RELEASE_SUFFIX, GLOB_ONLYDIR) as $gameNamePath) {
+		$fullLen = strlen($gameNamePath);
+		$gameNameOnly = substr($gameNamePath, $dirLen, $fullLen - $releaseLen - $dirLen);
+		echo '<tr><td colspan="2">'.$gameNameOnly.'</td></tr>';
+	}
+	_e('<tr><td colspan="2"><h3>Media File Games</h3></td></tr>', 'hs_unity3d_web_gl');
+	_e('<form id="" method="post">');
+	foreach (glob($dir.DS.GAME_DIR.DS."*$releaseTag", GLOB_ONLYDIR) as $gameNamePath) {
+		$fullLen = strlen($gameNamePath);
+		$gameName = substr($gameNamePath, $dirLen, $fullLen - $releaseLen - $dirLen);
+		echo "<tr><td><input type='radio' name='removeGroup' value='".$gameName."' ></td><td colspan='2'>".$gameName."</td></tr>";
+	}
+	_e('<tr><td colspan=2>', 'hs_unity3d_web_gl');
+	_e('<input type="submit" name="remove-game" value="Remove Game" class="button button-primary"/></td></tr>', 'hs_unity3d_web_gl');	
+	_e('</form>');
+	_e('<tr><td colspan="2"><h3>Available Media File games</h3></td></tr>', 'hs_unity3d_web_gl');
+	$upload_dir = wp_upload_dir();
+	$basedirLen = strlen($upload_dir[basedir]);
+	_e('<form id="" method="post">');
+	foreach (glob($upload_dir[basedir].DS."*", GLOB_ONLYDIR) as $gameNamePathYear) {
+		$gameNamePathYearLen = strlen($gameNamePathYear);
+		foreach (glob("$gameNamePathYear/*", GLOB_ONLYDIR) as $gameNamePathYearMonth) {
+			foreach (glob("$gameNamePathYearMonth/*-Release.zip") as $gameNamePathYearMonthZip) {
+				echo "<tr><td><input type='radio' name='extractGroup' value='".substr($gameNamePathYearMonthZip,$basedirLen)."' ></td><td>".substr($gameNamePathYearMonthZip,$basedirLen)."</td></tr>";
+			}
+		}
+	}
+	_e('<tr><td></td><td></td></tr>', 'hs_unity3d_web_gl');
+	_e('<tr><td colspan=2>Extract games from media zip file into plugin for play</td></tr>', 'hs_unity3d_web_gl');
+	_e('<tr><td colspan=2>', 'hs_unity3d_web_gl');
+	_e('<input type="submit" name="extract-game" value="Extract Game" class="button button-primary"/></td></tr>', 'hs_unity3d_web_gl');
+	echo '</table>';
+	echo '</form>';
+	echo '</div>';
+}
+
+function recursiveRemoveDirectoryGame($directory)
+{
+	$directoryOnly = substr($directory,0,strlen($directory)-2);
+    foreach(glob("{$directory}") as $file)
+    {
+        if(is_dir($file)) { 
+            recursiveRemoveDirectoryGame($file."/*");
+			//echo "intoDir:".$file."<br>";			
+        } else {
+            unlink($file);
+			//echo ":".$file.":<br>";
+        }
+    }
+	if (is_dir($directoryOnly)) {
+		//echo "is dir<br>";
+		rmdir($directoryOnly);
+	} 
+}
+
+/**
+* This method is recursive to remove a directory and its contents.
+* This is necessary when a unity3d game is being extracted from the ZIP file. 
+* In order to ensure only the files from the zip are present.
+*/
+function recursiveRemoveDirectory($directory)
+{
+    foreach(glob("{$directory}/*") as $file)
+    {
+        if(is_dir($file)) { 
+            recursiveRemoveDirectory($file);
+        } else {
+            unlink($file);
+        }
+    }
+    rmdir($directory);
+}
+
+?>
